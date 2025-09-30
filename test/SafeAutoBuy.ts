@@ -32,10 +32,9 @@ describe("SafeAutoBuy", function () {
     const enc = await fhevm.createEncryptedInput(addr, user.address).addAddress(tokenAddr).add32(1234).encrypt();
 
     const before = await safe.getPendingCount();
-    await expect(safe.connect(user).submitOrder(enc.handles[0], enc.handles[1], enc.inputProof, { value: ethers.parseEther("0.1") }))
+    await expect(safe.connect(user).submitOrder(enc.handles[0], enc.handles[1], enc.inputProof))
       .to.emit(safe, "OrderSubmitted");
     const after = await safe.getPendingCount();
     expect(after).to.equal(before + 1n);
   });
 });
-

@@ -23,9 +23,8 @@ task("safebuy:set-price", "Set fixed price for a token (wei per token)")
 task("safebuy:submit", "Submit an order")
   .addParam("token", "Desired token address")
   .addParam("amount", "Desired token amount (uint32)")
-  .addParam("eth", "Deposit in ETH (e.g., 0.1)")
   .setAction(async (args: TaskArguments, hre) => {
-    const { token, amount, eth } = args as { token: string; amount: string; eth: string };
+    const { token, amount } = args as { token: string; amount: string };
     const { ethers, deployments, fhevm } = hre;
 
     await fhevm.initializeCLIApi();
@@ -37,7 +36,33 @@ task("safebuy:submit", "Submit an order")
 
     const tx = await sb
       .connect(signers[0])
-      .submitOrder(input.handles[0], input.handles[1], input.inputProof, { value: ethers.parseEther(eth) });
+      .submitOrder(input.handles[0], input.handles[1], input.inputProof);
+    console.log(`Wait for tx: ${tx.hash}...`);
+    const rc = await tx.wait();
+    console.log(`status=${rc?.status}`);
+  });
+
+task("safebuy:deposit", "Deposit ETH to SafeAutoBuy balance")
+  .addParam("eth", "Amount in ETH")
+  .setAction(async (args: TaskArguments, hre) => {
+    const { eth } = args as { eth: string };
+    const { ethers, deployments } = hre;
+    const dep = await deployments.get("SafeAutoBuy");
+    const sb = await ethers.getContractAt("SafeAutoBuy", dep.address);
+    const tx = await sb.depositETH({ value: ethers.parseEther(eth) });
+    console.log(`Wait for tx: ${tx.hash}...`);
+    const rc = await tx.wait();
+    console.log(`status=${rc?.status}`);
+  });
+
+task("safebuy:withdraw", "Withdraw ETH from SafeAutoBuy balance")
+  .addParam("eth", "Amount in ETH")
+  .setAction(async (args: TaskArguments, hre) => {
+    const { eth } = args as { eth: string };
+    const { ethers, deployments } = hre;
+    const dep = await deployments.get("SafeAutoBuy");
+    const sb = await ethers.getContractAt("SafeAutoBuy", dep.address);
+    const tx = await sb.withdrawETH(ethers.parseEther(eth));
     console.log(`Wait for tx: ${tx.hash}...`);
     const rc = await tx.wait();
     console.log(`status=${rc?.status}`);
