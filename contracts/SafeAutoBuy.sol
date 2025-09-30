@@ -13,10 +13,9 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
     enum OrderStatus { Pending, Processing, Completed, Failed, Refunded, Canceled }
 
     struct Order {
-        address user;          // depositor, recipient of tokens and refunds
+        address user;          // user placing the order
         eaddress tokenEnc;     // encrypted token address
         euint32 amountEnc;     // encrypted token amount (token decimals as per ERC20)
-        uint256 depositWei;    // ETH deposited by user
         OrderStatus status;
         uint256 createdAt;
         // Decryption and process bookkeeping
@@ -25,6 +24,9 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
 
     // Fixed price per token (in wei) for each ERC20 token address
     mapping(address => uint256) public pricePerTokenWei;
+
+    // User ETH balances (top-up and withdraw)
+    mapping(address => uint256) private _ethBalances;
 
     // Orders storage
     Order[] private orders;
@@ -39,12 +41,14 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
     mapping(uint256 => DecryptCtx) private _decryptCtxByReqId;
 
     // Events
-    event OrderSubmitted(uint256 indexed orderId, address indexed user, uint256 depositWei);
+    event OrderSubmitted(uint256 indexed orderId, address indexed user);
     event PriceUpdated(address indexed token, uint256 pricePerTokenWei);
     event OrderPicked(uint256 indexed orderId, uint256 requestId);
     event OrderCompleted(uint256 indexed orderId, address indexed token, uint256 amount, uint256 costWei, uint256 refundWei);
     event OrderFailed(uint256 indexed orderId, string reason);
     event OrderRefunded(uint256 indexed orderId, uint256 amountWei);
+    event EthDeposited(address indexed user, uint256 amountWei);
+    event EthWithdrawn(address indexed user, uint256 amountWei);
 
     constructor(address initialOwner) Ownable(initialOwner) {}
 
@@ -58,8 +62,7 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
         externalEaddress tokenIn,
         externalEuint32 amountIn,
         bytes calldata inputProof
-    ) external payable returns (uint256 orderId) {
-        require(msg.value > 0, "Deposit required");
+    ) external returns (uint256 orderId) {
 
         eaddress tokenEnc = FHE.fromExternal(tokenIn, inputProof);
         euint32 amountEnc = FHE.fromExternal(amountIn, inputProof);
@@ -72,7 +75,6 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
             user: msg.sender,
             tokenEnc: tokenEnc,
             amountEnc: amountEnc,
-            depositWei: msg.value,
             status: OrderStatus.Pending,
             createdAt: block.timestamp,
             decryptRequestId: 0
@@ -85,24 +87,35 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
         pendingIndex[orderId] = pendingOrderIds.length + 1;
         pendingOrderIds.push(orderId);
 
-        emit OrderSubmitted(orderId, msg.sender, msg.value);
+        emit OrderSubmitted(orderId, msg.sender);
     }
 
-    /// @notice User may cancel a still-pending order and receive full refund
+    /// @notice Deposit ETH to your balance tracked by contract
+    function depositETH() external payable {
+        require(msg.value > 0, "Zero deposit");
+        _ethBalances[msg.sender] += msg.value;
+        emit EthDeposited(msg.sender, msg.value);
+    }
+
+    /// @notice Withdraw ETH from your balance
+    function withdrawETH(uint256 amount) external {
+        require(amount > 0, "Zero amount");
+        uint256 bal = _ethBalances[msg.sender];
+        require(bal >= amount, "Insufficient balance");
+        _ethBalances[msg.sender] = bal - amount;
+        (bool ok, ) = payable(msg.sender).call{value: amount}("");
+        require(ok, "Withdraw failed");
+        emit EthWithdrawn(msg.sender, amount);
+    }
+
+    /// @notice User may cancel a still-pending order
     function cancelOrder(uint256 orderId) external {
         Order storage o = orders[orderId];
         require(o.user == msg.sender, "Not your order");
         require(o.status == OrderStatus.Pending, "Not pending");
 
-        uint256 refund = o.depositWei;
-        o.depositWei = 0;
         o.status = OrderStatus.Canceled;
-
         _removeFromPending(orderId);
-
-        (bool ok, ) = payable(msg.sender).call{value: refund}("");
-        require(ok, "Refund failed");
-        emit OrderRefunded(orderId, refund);
     }
 
     // ============ Owner API ============
@@ -162,40 +175,37 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
         // Compute cost based on fixed price
         uint256 price = pricePerTokenWei[token];
         if (price == 0) {
-            _failAndRefund(ctx.orderId, "Price not set");
+            _fail(ctx.orderId, "Price not set");
             return true;
         }
 
         uint256 requiredWei = uint256(amount) * price;
         if (requiredWei == 0) {
-            _failAndRefund(ctx.orderId, "Invalid amount");
+            _fail(ctx.orderId, "Invalid amount");
             return true;
         }
 
-        if (o.depositWei < requiredWei) {
-            _failAndRefund(ctx.orderId, "Insufficient deposit");
+        if (_ethBalances[o.user] < requiredWei) {
+            _fail(ctx.orderId, "Insufficient balance");
             return true;
         }
+
+        // Deduct user deposited ETH balance
+        _ethBalances[o.user] -= requiredWei;
 
         // Fulfill from contract inventory: transfer tokens to user
         bool ok = IERC20(token).transfer(o.user, uint256(amount));
         if (!ok) {
-            _failAndRefund(ctx.orderId, "Token transfer failed");
+            // revert deduction on failure
+            _ethBalances[o.user] += requiredWei;
+            _fail(ctx.orderId, "Token transfer failed");
             return true;
         }
 
-        // Handle refund of leftover deposit
-        uint256 refund = o.depositWei - requiredWei;
-        o.depositWei = 0;
         o.status = OrderStatus.Completed;
         _removeFromPending(ctx.orderId);
 
-        if (refund > 0) {
-            (bool sent, ) = payable(o.user).call{value: refund}("");
-            require(sent, "Refund failed");
-        }
-
-        emit OrderCompleted(ctx.orderId, token, uint256(amount), requiredWei, refund);
+        emit OrderCompleted(ctx.orderId, token, uint256(amount), requiredWei, 0);
         // Ether retained in contract equal to requiredWei (owner can withdraw later if desired)
         delete _decryptCtxByReqId[requestId];
         return true;
@@ -215,6 +225,10 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
         return pendingOrderIds;
     }
 
+    function getEthBalance(address user) external view returns (uint256) {
+        return _ethBalances[user];
+    }
+
     function getOrder(uint256 orderId)
         external
         view
@@ -222,7 +236,6 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
             address user,
             bytes32 tokenCipher,
             bytes32 amountCipher,
-            uint256 depositWei,
             OrderStatus status,
             uint256 createdAt,
             uint256 decryptRequestId
@@ -232,7 +245,6 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
         user = o.user;
         tokenCipher = FHE.toBytes32(o.tokenEnc);
         amountCipher = FHE.toBytes32(o.amountEnc);
-        depositWei = o.depositWei;
         status = o.status;
         createdAt = o.createdAt;
         decryptRequestId = o.decryptRequestId;
@@ -251,21 +263,13 @@ contract SafeAutoBuy is SepoliaConfig, Ownable {
         pendingIndex[orderId] = 0;
     }
 
-    function _failAndRefund(uint256 orderId, string memory reason) internal {
+    function _fail(uint256 orderId, string memory reason) internal {
         Order storage o = orders[orderId];
-        uint256 refund = o.depositWei;
-        o.depositWei = 0;
         o.status = OrderStatus.Failed;
         _removeFromPending(orderId);
-        if (refund > 0) {
-            (bool ok, ) = payable(o.user).call{value: refund}("");
-            require(ok, "Refund failed");
-            emit OrderRefunded(orderId, refund);
-        }
         emit OrderFailed(orderId, reason);
     }
 
     // ============ Fallbacks ============
     receive() external payable {}
 }
-
