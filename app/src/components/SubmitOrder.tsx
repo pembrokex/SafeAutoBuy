@@ -3,6 +3,7 @@ import { useAccount, useReadContract } from 'wagmi';
 import { Contract } from 'ethers';
 import { useEthersSigner } from '../hooks/useEthersSigner';
 import { CONTRACT_ADDRESS, CONTRACT_ABI } from '../config/contracts';
+import { TOKENS } from '../config/tokens';
 import { useZamaInstance } from '../hooks/useZamaInstance';
 
 export function SubmitOrder() {
@@ -12,7 +13,6 @@ export function SubmitOrder() {
 
   const [token, setToken] = useState('');
   const [amount, setAmount] = useState('');
-  const [deposit, setDeposit] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
 
@@ -29,7 +29,7 @@ export function SubmitOrder() {
       alert('Connect wallet and wait for SDK');
       return;
     }
-    if (!token || !amount || !deposit) {
+    if (!token || !amount) {
       alert('Fill all fields');
       return;
     }
@@ -51,15 +51,12 @@ export function SubmitOrder() {
       if (!signer) throw new Error('Signer not available');
 
       const contract = new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
-      const tx = await contract.submitOrder(enc.handles[0], enc.handles[1], enc.inputProof, {
-        value: BigInt(Math.floor(parseFloat(deposit) * 1e18))
-      });
+      const tx = await contract.submitOrder(enc.handles[0], enc.handles[1], enc.inputProof);
       setTxHash(tx.hash);
       await tx.wait();
       alert('Order submitted');
       setAmount('');
       setToken('');
-      setDeposit('');
     } catch (err: any) {
       console.error(err);
       alert(err?.message || 'Submit failed');
@@ -73,16 +70,16 @@ export function SubmitOrder() {
       <h2 style={{ marginTop: 0 }}>Submit Purchase Order</h2>
       <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
         <label>
-          <div>Token address</div>
-          <input value={token} onChange={(e) => setToken(e.target.value.trim())} placeholder="0x..." style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+          <div>Token</div>
+          <select value={token} onChange={(e) => setToken(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}>
+            <option value="">Select token</option>
+            <option value={TOKENS.TEST.address}>TEST</option>
+            <option value={TOKENS.TEST2.address}>TEST2</option>
+          </select>
         </label>
         <label>
           <div>Amount (uint32)</div>
           <input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 1000" style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
-        </label>
-        <label>
-          <div>ETH deposit</div>
-          <input type="number" min={0} step="0.0001" value={deposit} onChange={(e) => setDeposit(e.target.value)} placeholder="e.g. 0.1" style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
         </label>
         <button disabled={submitting || zamaLoading} style={{ padding: '10px 14px', borderRadius: 6, border: '1px solid #111827', background: '#111827', color: '#fff' }}>
           {zamaLoading ? 'Initializing...' : submitting ? 'Submitting...' : 'Submit Order'}
@@ -97,4 +94,3 @@ export function SubmitOrder() {
     </div>
   );
 }
-
