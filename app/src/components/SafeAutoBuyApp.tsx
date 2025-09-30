@@ -3,9 +3,10 @@ import { Header } from './Header';
 import { SubmitOrder } from './SubmitOrder';
 import { Assets } from './Assets';
 import { OwnerPanel } from './OwnerPanel';
+import { Instructions } from './Instructions';
 
 export function SafeAutoBuyApp() {
-  const [activeTab, setActiveTab] = useState<'order' | 'owner' | 'assets'>('order');
+  const [activeTab, setActiveTab] = useState<'order' | 'owner' | 'assets' | 'instructions'>('order');
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto' }}>
@@ -30,9 +31,15 @@ export function SafeAutoBuyApp() {
           >
             Assets
           </button>
+          <button
+            onClick={() => setActiveTab('instructions')}
+            style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #ddd', background: activeTab==='instructions' ? '#111827' : '#fff', color: activeTab==='instructions' ? '#fff' : '#111' }}
+          >
+            Instructions
+          </button>
         </div>
 
-        {activeTab === 'order' ? <SubmitOrder /> : activeTab === 'owner' ? <OwnerPanel /> : <Assets />}
+        {activeTab === 'order' ? <SubmitOrder /> : activeTab === 'owner' ? <OwnerPanel /> : activeTab === 'assets' ? <Assets /> : <Instructions />}
       </main>
     </div>
   );
