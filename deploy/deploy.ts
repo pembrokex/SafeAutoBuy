@@ -6,13 +6,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployer } = await hre.getNamedAccounts();
   const { deploy } = hre.deployments;
 
-  // Deploy FHECounter (keep existing deployment)
-  const deployedFHECounter = await deploy("FHECounter", {
-    from: deployer,
-    log: true,
-  });
-  console.log(`FHECounter contract: `, deployedFHECounter.address);
-
   // Deploy TestToken
   const deployedTestToken = await deploy("TestToken", {
     from: deployer,
@@ -30,6 +23,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Deploy SafeAutoBuy
   const deployedSafeAutoBuy = await deploy("SafeAutoBuy", {
     from: deployer,
+    args: [deployer],
     log: true,
   });
   console.log(`SafeAutoBuy contract: `, deployedSafeAutoBuy.address);
@@ -42,6 +36,12 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
     const tx = await testToken.transfer(deployedSafeAutoBuy.address, transferAmount);
     await tx.wait();
     console.log(`Transferred ${ethers.formatEther(transferAmount)} TEST tokens to SafeAutoBuy`);
+
+    // Set a fixed price for TEST token (e.g., 0.0001 ETH per token)
+    const safeAutoBuy = await ethers.getContractAt("SafeAutoBuy", deployedSafeAutoBuy.address);
+    const setPriceTx = await safeAutoBuy.setPrice(deployedTestToken.address, ethers.parseEther("0.0001"));
+    await setPriceTx.wait();
+    console.log(`Set price for TEST token to 0.0001 ETH`);
   }
 };
 
