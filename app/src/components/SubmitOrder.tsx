@@ -66,30 +66,117 @@ export function SubmitOrder() {
   };
 
   return (
-    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: 16 }}>
-      <h2 style={{ marginTop: 0 }}>Submit Purchase Order</h2>
-      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 12 }}>
-        <label>
-          <div>Token</div>
-          <select value={token} onChange={(e) => setToken(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}>
+    <div>
+      <h2 style={{ marginTop: 0, marginBottom: 24, fontSize: 28, fontWeight: 700, color: '#1a202c', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ fontSize: 32 }}>📝</span>
+        Submit Purchase Order
+      </h2>
+
+      <form onSubmit={onSubmit} style={{ display: 'grid', gap: 20, maxWidth: 600 }}>
+        <label style={{ display: 'block' }}>
+          <div style={{ marginBottom: 8, fontWeight: 600, color: '#4a5568', fontSize: 14 }}>Token</div>
+          <select
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              borderRadius: 12,
+              border: '2px solid #e2e8f0',
+              fontSize: 15,
+              backgroundColor: '#f7fafc',
+              transition: 'all 0.2s ease',
+              outline: 'none'
+            }}
+            onFocus={(e) => e.target.style.borderColor = '#667eea'}
+            onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+          >
             <option value="">Select token</option>
-            <option value={TOKENS.TEST.address}>TEST</option>
-            <option value={TOKENS.TEST2.address}>TEST2</option>
+            <option value={TOKENS.TEST.address}>TEST Token</option>
+            <option value={TOKENS.TEST2.address}>TEST2 Token</option>
           </select>
         </label>
-        <label>
-          <div>Amount (uint32)</div>
-          <input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 1000" style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+
+        <label style={{ display: 'block' }}>
+          <div style={{ marginBottom: 8, fontWeight: 600, color: '#4a5568', fontSize: 14 }}>Amount (uint32)</div>
+          <input
+            type="number"
+            min={1}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="e.g. 1000"
+            style={{
+              width: '100%',
+              padding: '12px 16px',
+              borderRadius: 12,
+              border: '2px solid #e2e8f0',
+              fontSize: 15,
+              backgroundColor: '#f7fafc',
+              transition: 'all 0.2s ease',
+              outline: 'none'
+            }}
+            onFocus={(e) => e.target.style.borderColor = '#667eea'}
+            onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+          />
         </label>
-        <button disabled={submitting || zamaLoading} style={{ padding: '10px 14px', borderRadius: 6, border: '1px solid #111827', background: '#111827', color: '#fff' }}>
-          {zamaLoading ? 'Initializing...' : submitting ? 'Submitting...' : 'Submit Order'}
+
+        <button
+          disabled={submitting || zamaLoading}
+          style={{
+            padding: '14px 24px',
+            borderRadius: 12,
+            border: 'none',
+            background: submitting || zamaLoading ? '#cbd5e0' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: '#fff',
+            fontWeight: 600,
+            fontSize: 16,
+            cursor: submitting || zamaLoading ? 'not-allowed' : 'pointer',
+            transition: 'all 0.3s ease',
+            boxShadow: submitting || zamaLoading ? 'none' : '0 4px 15px rgba(102, 126, 234, 0.4)',
+            transform: submitting || zamaLoading ? 'none' : 'scale(1)'
+          }}
+          onMouseEnter={(e) => {
+            if (!submitting && !zamaLoading) {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = submitting || zamaLoading ? 'none' : '0 4px 15px rgba(102, 126, 234, 0.4)';
+          }}
+        >
+          {zamaLoading ? '⏳ Initializing...' : submitting ? '⏳ Submitting...' : '🚀 Submit Order'}
         </button>
       </form>
-      <div style={{ marginTop: 16, fontSize: 14, color: '#555' }}>
-        Pending orders: {typeof pendingCount === 'bigint' ? Number(pendingCount) : pendingCount ?? '-'}
+
+      <div style={{
+        marginTop: 24,
+        padding: 16,
+        background: 'linear-gradient(135deg, #f0f4ff 0%, #f5f0ff 100%)',
+        borderRadius: 12,
+        border: '2px solid #e2e8f0'
+      }}>
+        <div style={{ fontSize: 14, color: '#4a5568', fontWeight: 600 }}>
+          📊 Pending orders: <span style={{ color: '#667eea', fontSize: 18, fontWeight: 700 }}>
+            {typeof pendingCount === 'bigint' ? Number(pendingCount) : pendingCount ?? '-'}
+          </span>
+        </div>
       </div>
+
       {txHash && (
-        <div style={{ marginTop: 8, fontSize: 12 }}>Tx: {txHash}</div>
+        <div style={{
+          marginTop: 16,
+          padding: 12,
+          background: '#f0fff4',
+          borderRadius: 12,
+          border: '2px solid #9ae6b4',
+          fontSize: 13,
+          wordBreak: 'break-all',
+          color: '#22543d'
+        }}>
+          ✅ Transaction: {txHash}
+        </div>
       )}
     </div>
   );
