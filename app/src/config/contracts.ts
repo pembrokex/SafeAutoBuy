@@ -1,6 +1,6 @@
 // SafeAutoBuy contract configuration
 // IMPORTANT: Replace CONTRACT_ADDRESS after deploying to Sepolia.
-export const CONTRACT_ADDRESS = '0xd389298810a9C3C045FaBAC9D312d2bAc353713b';
+export const CONTRACT_ADDRESS = '0xE3c033A3CDbdee9bB72D6119Fc73Bf8cC5356A84';
 
 // ABI copied from deployments (no JSON imports allowed in frontend)
 export const CONTRACT_ABI = [
